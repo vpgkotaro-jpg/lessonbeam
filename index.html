@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+<title>LessonBeam - lessons that travel without internet</title>
+<meta name="description" content="Pack a lesson into a loop of QR codes, beam it to another phone with its camera, and verify it. Works fully offline. No accounts, no servers.">
+<meta name="theme-color" content="#0b2a4a">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header class="top">
+  <div class="brand">
+    <img src="icons/icon.svg" alt="" width="36" height="36">
+    <div><h1>LessonBeam</h1><p class="tag">Lessons that travel without internet</p></div>
+  </div>
+  <p class="net" id="netstate" role="status"><span class="dot" aria-hidden="true"></span><span id="nettext">Checking...</span></p>
+</header>
+<nav class="tabs" aria-label="Main">
+  <button data-view="library" aria-current="page">Library</button>
+  <button data-view="create">Create</button>
+  <button data-view="beam">Beam</button>
+  <button data-view="receive">Receive</button>
+</nav>
+
+<main id="main" tabindex="-1">
+  <section id="view-library" data-view="library" aria-labelledby="h-library">
+    <h2 id="h-library">Your lessons</h2>
+    <p class="lead">Pack a lesson, show it as a loop of QR codes, and let any other phone or laptop copy it with its camera. No internet, no pairing, no accounts.</p>
+    <div class="actions"><button class="btn primary" data-go="create">Create a lesson</button><button class="btn" data-go="receive">Receive a lesson</button></div>
+    <ul id="lib-list" class="cards" aria-label="Lessons"></ul>
+  </section>
+
+  <section id="view-create" data-view="create" hidden aria-labelledby="h-create">
+    <h2 id="h-create">Create a lesson</h2>
+    <form id="create-form" autocomplete="off">
+      <label for="c-title">Title</label>
+      <input id="c-title" maxlength="120" required placeholder="e.g. Photosynthesis in five minutes">
+      <label for="c-text">Lesson text <span class="count" id="c-count" aria-live="polite">0 / 6000</span></label>
+      <textarea id="c-text" rows="9" maxlength="6000" required placeholder="Write the lesson here. Separate paragraphs with a blank line."></textarea>
+      <fieldset>
+        <legend>Quiz (optional, up to 5 questions)</legend>
+        <div id="c-quiz"></div>
+        <button type="button" class="btn" id="c-addq">Add a question</button>
+      </fieldset>
+      <p id="c-error" class="msg err" role="alert" hidden></p>
+      <div class="actions"><button class="btn primary" type="submit">Save and beam</button><button class="btn" type="button" id="c-save">Save only</button></div>
+    </form>
+  </section>
+
+  <section id="view-beam" data-view="beam" hidden aria-labelledby="h-beam">
+    <h2 id="h-beam">Beam a lesson</h2>
+    <label for="b-pick">Lesson to beam</label>
+    <select id="b-pick"></select>
+    <p class="note">Hold this screen steady in front of the other device&rsquo;s camera (Receive tab). The loop repeats, so the receiver can join at any time and fill in missing parts.</p>
+    <div class="beam-wrap">
+      <canvas id="b-canvas" width="720" height="720" aria-label="Animated QR code carrying the lesson"></canvas>
+    </div>
+    <p id="b-counter" class="counter" aria-live="off">Preparing...</p>
+    <div class="controls">
+      <button class="btn" id="b-play" aria-pressed="true">Pause</button>
+      <label class="inline" for="b-fps">Speed <output id="b-fps-out">6 fps</output></label>
+      <input id="b-fps" type="range" min="2" max="10" step="1" value="6">
+      <label class="inline" for="b-size">Frame size <output id="b-size-out">300</output> chars</label>
+      <input id="b-size" type="range" min="150" max="400" step="10" value="300">
+    </div>
+    <p id="b-stats" class="note"></p>
+    <h3>Self-test (loopback, no camera)</h3>
+    <p class="note">This is a <strong>loopback test</strong>: the receiver below reads the pixels of the QR canvas above in this same page. It proves the encode, QR, decode, checksum and hash pipeline end to end, but it does not test a real camera. Use the Receive tab on a second device for that.</p>
+    <div class="actions"><button class="btn primary" id="b-selftest">Run self-test</button></div>
+    <div id="b-rx" class="rx-slot"></div>
+  </section>
+
+  <section id="view-receive" data-view="receive" hidden aria-labelledby="h-receive">
+    <h2 id="h-receive">Receive a lesson</h2>
+    <p class="note">Point this device&rsquo;s camera at a screen that is beaming a lesson. Parts can arrive in any order; the lesson is only accepted after every part is in and the SHA-256 hash matches.</p>
+    <div class="cam-wrap" id="cam-wrap" hidden><video id="r-video" playsinline muted></video></div>
+    <div class="actions"><button class="btn primary" id="r-start">Start camera</button><button class="btn" id="r-stop" hidden>Stop camera</button></div>
+    <p id="r-error" class="msg err" role="alert" hidden></p>
+    <div id="r-rx" class="rx-slot"></div>
+  </section>
+
+  <section id="view-lesson" data-view="lesson" hidden aria-labelledby="l-title">
+    <p><button class="btn small" data-go="library">&larr; Library</button></p>
+    <article>
+      <h2 id="l-title"></h2>
+      <p id="l-meta" class="note"></p>
+      <div id="l-body" class="prose"></div>
+      <div id="l-quizbox" hidden>
+        <h3>Quiz</h3>
+        <form id="l-quiz"></form>
+        <p id="l-score" class="msg ok" role="status" hidden></p>
+      </div>
+      <div class="actions"><button class="btn primary" id="l-beam">Beam this lesson onward</button></div>
+    </article>
+  </section>
+
+  <template id="tpl-rx">
+    <div class="rx">
+      <p class="rx-status" role="status" aria-live="polite">Waiting for the first QR code...</p>
+      <div class="bar" aria-hidden="true"><div class="bar-fill"></div></div>
+      <div class="grid" role="img" aria-label="No parts received yet"></div>
+      <p class="rx-stats note"></p>
+      <p class="msg err rx-err" role="alert" hidden></p>
+      <div class="msg ok rx-ok" hidden>
+        <p class="rx-okmsg"></p>
+        <div class="actions"><button class="btn primary rx-open">Read the lesson</button><button class="btn rx-again">Receive another</button></div>
+      </div>
+      <div class="actions rx-reset" hidden><button class="btn small rx-clear">Clear and start over</button></div>
+    </div>
+  </template>
+</main>
+
+<footer class="foot">
+  <p><strong>Private by design.</strong> Everything stays on this device. No accounts, no analytics, no server: lessons only travel as QR codes on your screen. Lessons you create or receive are stored in this browser&rsquo;s local storage.</p>
+  <p>MIT licensed. Third-party: qrcode-generator (MIT), jsQR (Apache-2.0). <a href="https://github.com/vpgkotaro-jpg/lessonbeam">Source</a></p>
+</footer>
+
+<script src="js/vendor/qrcode.js"></script>
+<script src="js/vendor/jsQR.js"></script>
+<script src="js/protocol.js"></script>
+<script src="js/samples.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
